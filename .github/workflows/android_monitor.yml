@@ -1,0 +1,70 @@
+name: Android News Monitor
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'  # 每15分钟检查一次
+  workflow_dispatch:      # 允许手动运行测试
+
+jobs:
+  check_news:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        pip install requests beautifulsoup4
+
+    - name: Run Monitor Script
+      run: |
+        python -c "
+        import requests
+        from bs4 import BeautifulSoup
+        import hashlib
+        
+        # 1. 这里填你刚才在 ntfy App 里取的主题名
+        topic_name = 'android_news_251230' 
+        
+        url = 'https://mktnews.net/flash.html'
+        
+        try:
+            # 模拟浏览器访问
+            headers = {'User-Agent': 'Mozilla/5.0'}
+            r = requests.get(url, headers=headers)
+            r.encoding = 'utf-8'
+            soup = BeautifulSoup(r.text, 'html.parser')
+            
+            # 获取最新的一条新闻文本（根据网页结构可能需要调整）
+            # 这里的逻辑是获取页面上所有的文字，取前200个字作为摘要
+            # 这种方式比较粗暴但通用
+            content = soup.get_text(strip=True)[:200]
+            
+            # --- 简单的去重逻辑 ---
+            # 实际生产环境建议用数据库或文件缓存，这里为了演示，
+            # 我们直接把获取到的内容发出去。
+            # 为了不让你手机每15分钟炸一次，建议你先手动运行看看效果，
+            # 真正完美使用通常需要对比'上一次的内容'，但这需要更高级的配置。
+            
+            # --- 发送到 ntfy (安卓) ---
+            if content:
+                # 推送标题
+                push_title = '市场快讯更新'
+                # 发送请求
+                requests.post(
+                    f'https://ntfy.sh/{topic_name}',
+                    data=content.encode('utf-8'),
+                    headers={
+                        'Title': push_title.encode('utf-8'),
+                        'Priority': 'default'
+                    }
+                )
+                print('推送成功！')
+            else:
+                print('未抓取到内容')
+
+        except Exception as e:
+            print(f'出错啦: {e}')
+        "
